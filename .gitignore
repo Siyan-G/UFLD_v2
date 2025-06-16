@@ -10,3 +10,7 @@ evaluate
 **/dist
 **/*egg-info
 *.lprof
+video_splits
+videos
+output
+test
