@@ -150,7 +150,7 @@ if __name__ == "__main__":
                 pred = net(imgs)
 
             vis = cv2.imread(os.path.join(cfg.data_root, names[0]))
-            coords = pred2coords(pred, cfg.row_anchor, cfg.col_anchor, original_image_width=img_w, original_image_height=img_h, device=device)
+            coords = pred2coords(pred, cfg.row_anchor, cfg.col_anchor, original_image_width=img_w, original_image_height=img_h)
 
             # Timestamp extraction
             basename = os.path.basename(names[0])
