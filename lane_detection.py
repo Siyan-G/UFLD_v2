@@ -35,10 +35,10 @@ def pred2coords(pred, row_anchor, col_anchor, local_width=1, original_image_widt
     batch_size, num_grid_row, num_cls_row, num_lane_row = pred['loc_row'].shape
     _, num_grid_col, num_cls_col, num_lane_col = pred['loc_col'].shape
 
-    max_indices_row = pred['loc_row'].argmax(1).cuda()
-    valid_row = pred['exist_row'].argmax(1).cuda()
-    max_indices_col = pred['loc_col'].argmax(1).cuda()
-    valid_col = pred['exist_col'].argmax(1).cuda()
+    max_indices_row = pred['loc_row'].argmax(1).to(pred['loc_row'].device)
+    valid_row = pred['exist_row'].argmax(1).to(pred['exist_row'].device)
+    max_indices_col = pred['loc_col'].argmax(1).to(pred['loc_col'].device)
+    valid_col = pred['exist_col'].argmax(1).to(pred['exist_col'].device)
 
     coords = []
     row_lane_idx = [1, 2]
@@ -109,13 +109,15 @@ if __name__ == "__main__":
         raise NotImplementedError("Unknown dataset: {}".format(cfg.dataset))
 
     # Load model
-    device = torch.device("cuda:0")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+
     net = get_model(cfg)
-    state_dict = torch.load(cfg.test_model)['model']
+    state_dict = torch.load(cfg.test_model, map_location=device)['model']
     net.load_state_dict({k.replace('module.', ''): v for k, v in state_dict.items()}, strict=False)
     net.to(device)
     net.eval()
-    print("✅ Model loaded on CUDA device.")
+    print("✅ Model loaded on device.")
 
     img_transforms = transforms.Compose([
         transforms.Resize((int(cfg.train_height / cfg.crop_ratio), cfg.train_width)),
