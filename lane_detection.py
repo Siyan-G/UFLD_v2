@@ -27,6 +27,82 @@ def fit_lane_polyline(points, degree=1, num_samples=50):
         return fitted_points.reshape((-1, 1, 2))
     except (np.RankWarning, ValueError):
         return None
+    
+def fit_lane_equation(points, degree=2, img_height=1080, y_min_ratio=0.5, y_max_ratio=0.9):
+    """
+    Fit polynomial x = f(y), and enforce y-range from y_min_ratio to y_max_ratio of image height.
+    """
+    if len(points) < degree + 1:
+        return None
+
+    points_np = np.array(points, dtype=np.float32)
+    x = points_np[:, 0]
+    y = points_np[:, 1]
+
+    try:
+        coeffs = np.polyfit(y, x, deg=degree)
+        y_detected_min = float(np.min(y))
+        y_detected_max = float(np.max(y))
+
+        # Convert ratios to absolute values
+        y_enforced_min = img_height * y_min_ratio
+        y_enforced_max = img_height * y_max_ratio
+
+        # Use the wider of the two: either detected range or enforced range
+        y_min = min(y_detected_min, y_enforced_min)
+        y_max = max(y_detected_max, y_enforced_max)
+
+        return {
+            'coefficients': coeffs.tolist(),
+            'y_bounds': [y_min, y_max]
+        }
+    except (np.RankWarning, ValueError):
+        return None
+    
+
+def fit_lane_line_straight(points, img_height=1080, y_min_ratio=0.5, y_max_ratio=1.0, std_dev_thresh=1.0):
+    """
+    Fit a straight lane line (x = f(y)) using degree 1 polynomial.
+    Ignores outliers and extrapolates line between y_min_ratio and y_max_ratio of the image height.
+    """
+    if len(points) < 2:
+        return None  # Need at least 2 points for a straight line
+
+    points_np = np.array(points, dtype=np.float32)
+    x = points_np[:, 0]
+    y = points_np[:, 1]
+
+    # Remove outliers using linear regression residuals
+    try:
+        # Initial straight-line fit
+        coeffs = np.polyfit(y, x, deg=2)
+        x_pred = np.polyval(coeffs, y)
+        residuals = x - x_pred
+        std_dev = np.std(residuals)
+
+        # Filter inliers
+        mask = np.abs(residuals) < std_dev_thresh * std_dev
+        x_inliers = x[mask]
+        y_inliers = y[mask]
+
+        if len(x_inliers) < 2:
+            return None  # Not enough points after filtering
+
+        # Refit line using inliers
+        coeffs = np.polyfit(y_inliers, x_inliers, deg=1)
+
+        # Extrapolate from 40% to 100% of image height
+        y_min = img_height * y_min_ratio
+        y_max = img_height * y_max_ratio
+
+        return {
+            'coefficients': coeffs.tolist(),
+            'y_bounds': [y_min, y_max]
+        }
+
+    except Exception as e:
+        print(f"Fit failed: {e}")
+        return None
 
 def pred2coords(pred, row_anchor, col_anchor, local_width=1, original_image_width=1920, original_image_height=1080):
     """
@@ -90,7 +166,7 @@ if __name__ == "__main__":
 
     if cfg.dataset == 'CULane':
         cls_num_per_lane = 18
-        splits = ['test.txt']
+        splits = ['lane3.txt']
         img_w, img_h = 1920, 1080
         datasets = [LaneTestDataset(cfg.data_root, os.path.join(cfg.data_root, 'lists', split),
                                     img_transform=None, crop_size=cfg.train_height) for split in splits]
@@ -120,7 +196,7 @@ if __name__ == "__main__":
     net.load_state_dict({k.replace('module.', ''): v for k, v in state_dict.items()}, strict=False)
     net.to(device)
     net.eval()
-    print("✅ Model loaded on device.")
+    print(f'✅ Model loaded on {device}')
 
     img_transforms = transforms.Compose([
         transforms.Resize((int(cfg.train_height / cfg.crop_ratio), cfg.train_width)),
@@ -199,10 +275,20 @@ if __name__ == "__main__":
             for idx, lane in enumerate(coords):
                 if len(lane) < 10:
                     continue
-                fit_pts = fit_lane_polyline(lane)
-                if fit_pts is not None:
+                fit_result = fit_lane_line_straight(lane)
+                if fit_result is not None:
+                    coeffs = fit_result['coefficients']
+                    y_min, y_max = fit_result['y_bounds']
+
+                    # Generate y values for the line (integer steps)
+                    y_vals = np.linspace(y_min, y_max, num=100)
+                    x_vals = np.polyval(coeffs, y_vals)
+
+                    # Stack as (x, y) and convert to int32 for OpenCV
+                    line_pts = np.stack([x_vals, y_vals], axis=1).astype(np.int32).reshape(-1, 1, 2)
+
                     color = lane_colors[idx % len(lane_colors)]
-                    cv2.polylines(vis, [fit_pts], isClosed=False, color=color, thickness=3)
+                    cv2.polylines(vis, [line_pts], isClosed=False, color=color, thickness=3)
 
             vout.write(vis)
 

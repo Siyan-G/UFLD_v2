@@ -1,0 +1,19 @@
+# Ultralytics BoT-SORT tracker configuration for vehicle tracking
+
+tracker_type: botsort           # tracker type: botsort or bytetrack
+track_high_thresh: 0.3         # high threshold for first association
+track_low_thresh: 0.15           # low threshold for second association
+new_track_thresh: 0.3          # threshold to initialize a new track
+track_buffer: 20                # buffer frames before deleting lost tracks
+match_thresh: 0.85               # matching threshold for tracker association
+fuse_score: true                # fuse confidence score with IoU for matching
+
+# BoT-SORT specific settings for vehicle tracking
+gmc_method: sparseOptFlow       # global motion compensation method
+proximity_thresh: 0.5           # min IoU for valid match with ReID
+appearance_thresh: 0.7          # min appearance similarity for ReID
+with_reid: false                # disable ReID for performance (vehicles usually have distinct box motion)
+model: auto                    # use 'auto' to infer model type correctly; set manually if needed
+
+# Optional: filter out tiny boxes (very small vehicles or noise)
+min_box_area: 36000              # minimum box area in pixels (adjust depending on video resolution)

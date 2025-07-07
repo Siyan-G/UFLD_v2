@@ -26,7 +26,7 @@ def process_video(video_path: str):
         "ffmpeg", "-i", str(video_path),
         "-vf", "scale=1920:1080",
         "-c:v", "libx264",  # Use H.264 codec
-        "-crf", "23",       # Quality setting: lower is better quality
+        "-crf", "0",       # Quality setting: lower is better quality
         "-preset", "fast",  # Encoding speed/quality tradeoff
         str(resized_video_path)
     ], check=True)
@@ -35,6 +35,7 @@ def process_video(video_path: str):
     print(f"Extracting frames from resized video: {resized_video_path}")
     subprocess.run([
         "ffmpeg", "-i", str(resized_video_path),
+        "-vf", "fps=30",
         "-q:v", "1",
         str(tmp_dir / "frame_%05d.jpg")
     ], check=True)
@@ -73,7 +74,7 @@ def process_video(video_path: str):
             relative_path = frame.relative_to("video_splits")
             f.write(f"{relative_path}\n")
 
-    print("✅ Processing complete!")
+    print("✅ Video processing complete!")
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
